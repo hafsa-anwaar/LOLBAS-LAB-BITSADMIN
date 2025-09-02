@@ -1,0 +1,31 @@
+title: PowerShell Network Download (Generic)
+id: 8c2c0a8b-91e7-4b3e-9f3c-ps-net-dl
+status: experimental
+description: Detects PowerShell downloading content via common methods.
+author: Hafsah Ali
+date: 2025/08/27
+tags:
+  - attack.t1059.001
+  - attack.t1105
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4688
+    NewProcessName|endswith: '\powershell.exe'
+    CommandLine|contains:
+      - 'Invoke-WebRequest'
+      - 'iwr'
+      - 'wget '
+      - 'curl '
+      - 'System.Net.WebClient'
+      - 'DownloadFile('
+      - 'Start-BitsTransfer'
+  condition: selection
+fields:
+  - TimeCreated
+  - NewProcessName
+  - CommandLine
+  - ParentProcessName
+level: high

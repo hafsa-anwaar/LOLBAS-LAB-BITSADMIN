@@ -1,0 +1,36 @@
+title: PowerShell Download Via CMD (Invoke-WebRequest)
+id: 7f6f8c3f-0a6c-4d13-91b2-ps-iwr-cmd
+status: experimental
+description: Detects cmd.exe spawning powershell.exe that performs a file download using Invoke-WebRequest (or aliases).
+author: Hafsa
+date: 2025/08/27
+tags:
+  - attack.t1059.001
+  - attack.t1105
+logsource:
+  product: windows
+  service: security
+detection:
+  selection_base:
+    EventID: 4688
+    NewProcessName|endswith: '\powershell.exe'
+  selection_parent:
+    ParentProcessName|endswith: '\cmd.exe'
+  selection_dl:
+    CommandLine|contains:
+      - 'Invoke-WebRequest'
+      - 'iwr'
+      - 'wget '
+      - 'curl '
+      - 'System.Net.WebClient'
+      - 'DownloadFile('
+      - 'Start-BitsTransfer'
+  condition: selection_base and selection_parent and selection_dl
+fields:
+  - TimeCreated
+  - NewProcessName
+  - CommandLine
+  - ParentProcessName
+falsepositives:
+  - Admin scripts or automation that legitimately use PowerShell to download tools
+level: high

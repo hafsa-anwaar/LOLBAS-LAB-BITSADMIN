@@ -1,0 +1,26 @@
+title: Suspicious Use of bitsadmin.exe To Download
+id: c3d63f4c-4c0f-48b1-8d6c-bits-dl
+status: experimental
+description: Detects bitsadmin downloading a file (LOLBAS).
+author: Hafsah Ali
+date: 2025/08/27
+tags:
+  - attack.t1197
+  - attack.t1105
+logsource:
+  product: windows
+  service: security
+detection:
+  selection:
+    EventID: 4688
+    NewProcessName|endswith: '\bitsadmin.exe'
+    CommandLine|contains:
+      - '/transfer'
+      - '/download'
+  condition: selection
+fields:
+  - TimeCreated
+  - NewProcessName
+  - CommandLine
+  - ParentProcessName
+level: high
